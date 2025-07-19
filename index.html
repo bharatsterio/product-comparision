@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Product Comparison</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" />
+  <style>
+    .product-card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 15px;
+      margin: 10px 0;
+      text-align: center;
+    }
+    .compare-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #f8f9fa;
+      border-top: 1px solid #ccc;
+      padding: 10px;
+      display: none;
+      z-index: 1000;
+    }
+    .highlight-diff {
+      background-color: #fff3cd;
+    }
+    .comparison-table th,
+    .comparison-table td {
+      vertical-align: top;
+      text-align: center;
+    }
+    .search-bar {
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="container my-4 pb-5">
+  <h2 class="text-center mb-4">Product List</h2>
+  <div class="search-bar">
+    <input type="text" id="search-input" class="form-control" placeholder="Search by name or brand...">
+  </div>
+  <div class="row" id="product-list"></div>
+
+  <div class="compare-bar" id="compare-bar">
+    <div class="d-flex justify-content-between align-items-center">
+      <span id="selected-count">Selected: 0</span>
+      <button class="btn btn-primary btn-sm" id="compare-btn">Compare</button>
+      <button class="btn btn-danger btn-sm" id="clear-btn">Clear</button>
+    </div>
+  </div>
+
+  <div class="mt-3" id="comparison-view"></div>
+</div>
+
+<script>
+  const products = [
+    { id: 1, name: "iPhone 14 Pro", brand: "Apple", image: "images/iphone-14-pro.png", price: "$699", features: ["Battery: 4000mAh", "Screen: 6.5\"", "Camera: 12MP"] },
+    { id: 2, name: "Samsung S24", brand: "Samsung", image: "images/galaxy-s24.jpeg", price: "$799", features: ["Battery: 4200mAh", "Screen: 6.3\"", "Camera: 48MP"] },
+    { id: 3, name: "iPhone 14 Pro Max", brand: "Apple", image: "images/iphone-14-promax.jpeg", price: "$599", features: ["Battery: 3500mAh", "Screen: 6.0\"", "Camera: 16MP"] },
+    { id: 4, name: "Samsung S24 Ultra", brand: "Samsung", image: "images/galaxy-s24_ultra.jpeg", price: "$899", features: ["Battery: 5000mAh", "Screen: 6.7\"", "Camera: 64MP"] },
+    { id: 5, name: "iPhone 15", brand: "Apple", image: "images/iphone-15.jpeg", price: "$499", features: ["Battery: 3000mAh", "Screen: 5.8\"", "Camera: 8MP"] },
+    { id: 6, name: "Samsung S23", brand: "Samsung", image: "images/galaxy-s23.jpeg", price: "$649", features: ["Battery: 4100mAh", "Screen: 6.1\"", "Camera: 13MP"] }
+  ];
+
+  let selectedProducts = JSON.parse(localStorage.getItem("compareItems")) || [];
+
+  function renderProducts(filter = "") {
+    const list = document.getElementById("product-list");
+    list.innerHTML = "";
+    products
+      .filter(p => p.name.toLowerCase().includes(filter.toLowerCase()) || p.brand.toLowerCase().includes(filter.toLowerCase()))
+      .forEach(p => {
+        const col = document.createElement("div");
+        col.className = "col-md-4 mb-3";
+        col.innerHTML = `
+          <div class="product-card">
+            <img src="${p.image}" alt="${p.name}" height="120" />
+            <h5 class="my-3">${p.name}</h5>
+            <p><strong>${p.brand}</strong></p>
+            <p>${p.price}</p>
+            <ul class="list-unstyled">
+              ${p.features.map(f => `<li>${f}</li>`).join('')}
+            </ul>
+            <input type="checkbox" id="${p.id}" class="compare-check" value="${p.id}" ${selectedProducts.includes(p.id) ? 'checked' : ''} tabindex="0" /> 
+            <label for="${p.id}">Add to Compare</label>
+          </div>`;
+        list.appendChild(col);
+      });
+  }
+
+  function updateCompareBar() {
+    const bar = document.getElementById("compare-bar");
+    const count = document.getElementById("selected-count");
+    if (selectedProducts.length >= 2) {
+      bar.style.display = "block";
+      count.textContent = `Selected: ${selectedProducts.length}`;
+    } else {
+      bar.style.display = "none";
+    }
+    localStorage.setItem("compareItems", JSON.stringify(selectedProducts));
+  }
+
+  function showComparison() {
+    const view = document.getElementById("comparison-view");
+    if (selectedProducts.length < 2) return;
+    let selectedData = products.filter(p => selectedProducts.includes(p.id));
+
+    const featureSet = new Set();
+    selectedData.forEach(p => p.features.forEach(f => featureSet.add(f.split(":")[0])));
+    const allFeatures = Array.from(featureSet);
+
+    let table = `<table class="table comparison-table table-bordered">
+      <thead>
+        <tr>
+          <th>Feature</th>
+          ${selectedData.map(p => `<th>${p.name}</th>`).join('')}
+        </tr>
+      </thead>
+      <tbody>`;
+
+    allFeatures.forEach(f => {
+      const values = selectedData.map(p => p.features.find(feat => feat.startsWith(f + ":")) || `${f}: N/A`).map(str => str.split(": ")[1]);
+      const unique = [...new Set(values)];
+      const isDifferent = unique.length > 1;
+      table += `<tr>
+        <td>${f}</td>
+        ${values.map(val => `<td class="${isDifferent ? 'highlight-diff' : ''}">${val}</td>`).join('')}
+      </tr>`;
+    });
+
+    table += `</tbody></table>`;
+    view.innerHTML = table;
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    renderProducts();
+    updateCompareBar();
+
+    document.body.addEventListener("change", e => {
+      if (e.target.classList.contains("compare-check")) {
+        const id = parseInt(e.target.value);
+        if (e.target.checked) {
+          if (selectedProducts.length < 3) {
+            selectedProducts.push(id);
+          } else {
+            alert("You can compare up to 3 products.");
+            e.target.checked = false;
+          }
+        } else {
+          selectedProducts = selectedProducts.filter(p => p !== id);
+        }
+        updateCompareBar();
+      }
+    });
+
+    document.getElementById("compare-btn").addEventListener("click", showComparison);
+    document.getElementById("clear-btn").addEventListener("click", () => {
+      selectedProducts = [];
+      document.querySelectorAll(".compare-check").forEach(c => c.checked = false);
+      updateCompareBar();
+      document.getElementById("comparison-view").innerHTML = "";
+    });
+
+    document.getElementById("search-input").addEventListener("input", e => {
+      renderProducts(e.target.value);
+    });
+  });
+</script>
+</body>
+</html>
